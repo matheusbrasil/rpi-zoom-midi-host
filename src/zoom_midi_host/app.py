@@ -29,6 +29,7 @@ class ZoomMidiHostApp:
     def run(self) -> None:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
         self._running = True
+        self._display.show_message("Waiting for Zoom MS-60B+")
         self._monitor.start()
         self._install_signal_handlers()
         LOGGER.info("Zoom MIDI host running. Waiting for devices...")
@@ -62,6 +63,8 @@ class ZoomMidiHostApp:
             patch = self._pedal.fetch_patch_chain()
             if patch:
                 self._display.show_patch(patch)
+            else:
+                self._display.show_message("Zoom MS-60B+ connected\nNo patch data")
             self._setup_m_vave()
 
     def _on_pedal_disconnected(self, event) -> None:
@@ -70,6 +73,7 @@ class ZoomMidiHostApp:
             self._m_vave_listener.stop()
             self._m_vave_listener = None
         self._pedal = None
+        self._display.show_message("Waiting for Zoom MS-60B+")
 
     def _setup_m_vave(self) -> None:
         if self._pedal is None:
