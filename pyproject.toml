@@ -7,7 +7,7 @@ name = "zoom-midi-host"
 version = "0.1.0"
 description = "Raspberry Pi host application for controlling Zoom MS-60B+ via MIDI"
 authors = [
-    {name = "Vibe Coding", email = ""}
+    {name = "Vibe Coding"}
 ]
 readme = "README.md"
 requires-python = ">=3.10"

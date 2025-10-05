@@ -27,13 +27,18 @@ Follow Velleman's documentation to wire the SPI display. The default pin mapping
 ## Preparing the Raspberry Pi
 
 1. Flash the latest **Raspberry Pi OS Lite** image to a microSD card and boot the Pi.
-2. Update the base system and install system dependencies required by Pillow, RtMidi and the SPI display drivers:
+2. Update the base system and install system dependencies required by Pillow, RtMidi and the SPI display drivers.  Recent Raspberry Pi OS releases renamed a few imaging and BLAS packages, so the list below reflects the currently available variants:
 
    ```bash
    sudo apt update
-   sudo apt full-upgrade -y
-   sudo apt install -y python3 python3-pip python3-venv python3-dev libopenjp2-7 libtiff5 libatlas-base-dev \
-       libjpeg-dev zlib1g-dev libfreetype6-dev liblcms2-dev libharfbuzz-dev libfribidi-dev libxcb1 \
+   sudo apt install -y \
+       python3 python3-pip python3-venv python3-dev \
+       build-essential pkg-config \
+       libopenjp2-7 \
+       libtiff-dev libtiff6 \
+       libjpeg-dev zlib1g-dev libfreetype-dev liblcms2-dev \
+       libharfbuzz-dev libfribidi-dev libxcb1 \
+       libopenblas-dev liblapack-dev \
        poppler-utils imagemagick git
    ```
 
@@ -55,12 +60,26 @@ Follow Velleman's documentation to wire the SPI display. The default pin mapping
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-pip python3-dev libopenjp2-7 libtiff5 libatlas-base-dev
+sudo apt install -y \
+    python3 python3-pip python3-venv python3-dev \
+    build-essential pkg-config \
+    libopenjp2-7 \
+    libtiff-dev libtiff6 \
+    libjpeg-dev zlib1g-dev libfreetype-dev liblcms2-dev \
+    libharfbuzz-dev libfribidi-dev libxcb1 \
+    libopenblas-dev liblapack-dev \
+    poppler-utils imagemagick git
 python3 -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install .
+python -m ensurepip --upgrade
+python -m pip install --upgrade pip
+python -m pip install .
 ```
+
+> **Tip**: If `pip` reports the environment is "externally managed" (PEP 668,
+> common on Raspberry Pi OS Bookworm), ensure you have sourced the virtual
+> environment and run `python -m ensurepip --upgrade` once to bootstrap an
+> isolated copy of `pip` inside `.venv/`.
 
 To run the service directly:
 
