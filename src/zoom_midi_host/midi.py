@@ -50,6 +50,9 @@ def open_m_vave_ports() -> Tuple[Optional[mido.ports.BaseInput], Optional[mido.p
         "M VAVE",
         "M-Vave",
         "MVAVE",
+        "MIDI2",
+        "USB MIDI",
+        "SINCO",
     )
     input_name = find_matching_port(mido.get_input_names(), keywords)
     output_name = find_matching_port(mido.get_output_names(), keywords)
