@@ -15,6 +15,7 @@ LOGGER = logging.getLogger(__name__)
 def find_matching_port(names: Iterable[str], keywords: Iterable[str]) -> Optional[str]:
     """Return the first MIDI port whose name contains one of the given keywords."""
 
+    keywords = list(keywords)
     for name in names:
         lowered = name.lower()
         for keyword in keywords:
