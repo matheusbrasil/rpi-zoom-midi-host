@@ -108,6 +108,11 @@ class ZoomMidiHostApp:
         if self._m_vave_listener:
             self._m_vave_listener.stop()
             self._m_vave_listener = None
+        if self._pedal:
+            try:
+                self._pedal.close()
+            except Exception:  # pragma: no cover - best effort cleanup
+                LOGGER.debug("Failed to close pedal cleanly", exc_info=True)
         if self._m_vave_midi_in:
             self._m_vave_midi_in.close()
             self._m_vave_midi_in = None

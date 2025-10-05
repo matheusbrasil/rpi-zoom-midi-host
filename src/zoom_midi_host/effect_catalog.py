@@ -6,6 +6,8 @@ from dataclasses import dataclass
 import re
 from typing import Dict, Iterable, Optional
 
+from .ms60b_effect_ids import EFFECT_NAME_BY_OBJECT_ID
+
 
 @dataclass(frozen=True)
 class EffectMetadata:
@@ -31,6 +33,13 @@ def _build_catalog(entries: Iterable[tuple[int, str, str | None]]) -> Dict[int, 
             name=name,
             slug=slug or _slugify(name),
         )
+    for effect_id, name in EFFECT_NAME_BY_OBJECT_ID.items():
+        if effect_id not in catalog:
+            catalog[effect_id] = EffectMetadata(
+                effect_id=effect_id,
+                name=name,
+                slug=_slugify(name),
+            )
     return catalog
 
 
