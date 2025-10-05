@@ -85,6 +85,11 @@ python -m pip install .
 > environment and run `python -m ensurepip --upgrade` once to bootstrap an
 > isolated copy of `pip` inside `.venv/`.
 
+> **USB check**: `lsusb` should list the pedal as `1686:01ad`, `1686:01ae` or
+> the newer `1686:07a1` unit. If you installed the package before this update,
+> rerun `python -m pip install --force-reinstall .` so the fresh USB IDs are
+> used by the service.
+
 ### Configure the VMP400 LCD
 
 The touchscreen ships with an ILI9341 controller. The application talks to it

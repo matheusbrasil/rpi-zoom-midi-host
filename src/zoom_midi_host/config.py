@@ -20,7 +20,7 @@ PEDAL_MODELS: Dict[str, PedalModel] = {
     "MS-60B+": PedalModel(
         name="Zoom MS-60B+",
         vendor_id=0x1686,
-        product_ids=(0x01AD, 0x01AE),
+        product_ids=(0x01AD, 0x01AE, 0x07A1),
         midi_port_keywords=("ZOOM MS-60B+", "MS-60B+"),
     ),
 }
