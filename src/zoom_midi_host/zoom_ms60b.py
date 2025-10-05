@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import struct
 import time
 from typing import Iterable, Optional
 
@@ -65,7 +64,8 @@ class ZoomMs60bPlus:
     def fetch_patch_chain(self) -> Optional[PatchChain]:
         """Fetch the current patch chain from the pedal."""
 
-        response = self._request(REQUEST_CURRENT_PATCH)
+        self._clear_pending()
+        response = self._request(REQUEST_CURRENT_PATCH, timeout=1.5)
         if not response:
             return None
         try:
@@ -77,70 +77,69 @@ class ZoomMs60bPlus:
             LOGGER.warning("Unexpected patch response prefix: %s", data[:4])
             return None
 
-        decompressed = self._unpack_seven_bit(data[1:])
-        if decompressed is None:
-            LOGGER.warning("Failed to unpack patch response")
+        decoded = self._unpack_sysex(response.data[4:])
+        if not decoded:
+            LOGGER.warning("Failed to decode patch payload")
             return None
-        return self._parse_patch(decompressed)
+        patch = self._parse_patch(decoded)
+        if patch is None:
+            LOGGER.warning("Unable to parse patch data")
+        return patch
 
     @staticmethod
-    def _unpack_seven_bit(payload: Iterable[int]) -> Optional[bytes]:
+    def _unpack_sysex(payload: Iterable[int]) -> bytes:
+        data = bytearray()
         hibits = 0
-        bit_index = -1
-        output = bytearray()
+        loop = -1
         for byte in payload:
-            if bit_index >= 0:
-                if hibits & (1 << bit_index):
-                    output.append(byte | 0x80)
-                else:
-                    output.append(byte)
-                bit_index -= 1
+            if loop != -1:
+                data.append((byte | 0x80) if (hibits & (1 << loop)) else byte)
+                loop -= 1
             else:
                 hibits = byte
-                bit_index = 6
-        if not output:
-            return None
-        return bytes(output)
+                loop = 6
+        return bytes(data)
 
-    def _parse_patch(self, data: bytes) -> PatchChain:
-        try:
-            name = data[26:58].split(b"\x00", 1)[0].decode("utf-8", errors="ignore").strip()
-        except Exception:  # pragma: no cover
-            LOGGER.exception("Failed to decode patch name")
-            name = "Unknown Patch"
+    def _parse_patch(self, data: bytes) -> Optional[PatchChain]:
+        masked = bytes(byte & 0x7F for byte in data)
 
-        try:
-            chunk = data.split(b"EDTB", 1)[1]
-            chunk = chunk.split(b"PPRM", 1)[0]
-        except IndexError:
-            LOGGER.warning("Failed to locate EDTB section in patch data")
-            return PatchChain(patch_name=name, effects=[])
+        name_bytes = masked[26:58]
+        patch_name = name_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="ignore").strip() or "Unknown Patch"
+
+        edtb_index = self._find_tag(data, b"EDTB")
+        if edtb_index == -1:
+            LOGGER.warning("EDTB chunk not found in patch payload")
+            return PatchChain(patch_name=patch_name, effects=[])
+
+        edtb_data = data[edtb_index + 4 :]
+        next_tag_index = self._next_tag_index(data, edtb_index + 4)
+        if next_tag_index != -1:
+            edtb_data = data[edtb_index + 4 : next_tag_index]
 
         effects: list[Effect] = []
-        if not chunk:
-            return PatchChain(patch_name=name, effects=effects)
-
-        effect_count = int(chunk[0] / 24) if chunk[0] else 0
-        slot_pointer = 0
-        for index in range(min(effect_count, MAX_EFFECTS)):
-            base = 4 + index * 24
-            if base + 24 > len(chunk):
+        for slot in range(MAX_EFFECTS):
+            base = 4 + slot * 24
+            if base + 8 > len(edtb_data):
                 break
-            union = struct.unpack_from("<I", chunk, base)[0]
-            effect_object_id = (union >> 1) & 0x0FFFFFFF
+            union = (
+                ((edtb_data[base + 3] & 0x7F) << 24)
+                | ((edtb_data[base + 2] & 0x7F) << 16)
+                | ((edtb_data[base + 1] & 0x7F) << 8)
+                | (edtb_data[base] & 0x7F)
+            )
+            effect_id = (union >> 1) & 0x0FFFFFFF
             enabled = bool(union & 0x01)
-            metadata = get_effect_metadata(effect_object_id)
+            metadata = get_effect_metadata(effect_id)
             effects.append(
                 Effect(
-                    slot=slot_pointer,
-                    name=metadata.name if metadata else f"Effect 0x{effect_object_id:08X}",
+                    slot=slot,
+                    name=metadata.name if metadata else f"Effect 0x{effect_id:08X}",
                     enabled=enabled,
                     icon_slug=metadata.slug if metadata else None,
                 )
             )
-            slot_pointer += 1
 
-        return PatchChain(patch_name=name, effects=effects)
+        return PatchChain(patch_name=patch_name, effects=effects)
 
     def toggle_effect(self, slot: int, enabled: bool) -> None:
         """Toggle an effect slot on the pedal."""
@@ -160,6 +159,28 @@ class ZoomMs60bPlus:
         response = self._request(command)
         if not response:
             LOGGER.warning("Failed to toggle slot %s", slot)
+
+    def close(self) -> None:
+        if self._editor_enabled:
+            self._request(COMMAND_PARAMETER_EDIT_DISABLE, timeout=0.2)
+            self._editor_enabled = False
+
+    @staticmethod
+    def _find_tag(data: bytes, tag: bytes, start: int = 0) -> int:
+        tag_len = len(tag)
+        for idx in range(start, len(data) - tag_len + 1):
+            for offset, value in enumerate(tag):
+                if (data[idx + offset] & 0x7F) != value:
+                    break
+            else:
+                return idx
+        return -1
+
+    def _next_tag_index(self, data: bytes, start: int) -> int:
+        tags = (b"NAME", b"PRM2", b"TXE1", b"TXJ1", b"PPRM")
+        indices = [self._find_tag(data, tag, start) for tag in tags]
+        indices = [idx for idx in indices if idx != -1]
+        return min(indices) if indices else -1
 
     def close(self) -> None:
         if self._editor_enabled:
