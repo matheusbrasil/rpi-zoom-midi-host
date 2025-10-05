@@ -43,7 +43,14 @@ def find_zoom_port_names() -> Tuple[Optional[str], Optional[str]]:
 def open_m_vave_ports() -> Tuple[Optional[mido.ports.BaseInput], Optional[mido.ports.BaseOutput]]:
     """Open MIDI ports for the M-Vave Chocolate Plus."""
 
-    keywords = ("M-VAVE", "CHOCOLATR", "Chocolate")
+    keywords = (
+        "M-VAVE",
+        "CHOCOLATR",
+        "CHOCOLATE",
+        "M VAVE",
+        "M-Vave",
+        "MVAVE",
+    )
     input_name = find_matching_port(mido.get_input_names(), keywords)
     output_name = find_matching_port(mido.get_output_names(), keywords)
 
