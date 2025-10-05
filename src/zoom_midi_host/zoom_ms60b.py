@@ -182,10 +182,5 @@ class ZoomMs60bPlus:
         indices = [idx for idx in indices if idx != -1]
         return min(indices) if indices else -1
 
-    def close(self) -> None:
-        if self._editor_enabled:
-            self._request(COMMAND_PARAMETER_EDIT_DISABLE, timeout=0.2)
-            self._editor_enabled = False
-
 
 __all__ = ["ZoomMs60bPlus"]
