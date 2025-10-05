@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Tuple
 
 import mido
 
@@ -24,21 +23,18 @@ def find_matching_port(names: Iterable[str], keywords: Iterable[str]) -> Optiona
     return None
 
 
-def open_zoom_ports() -> tuple[Optional[mido.ports.BaseInput], Optional[mido.ports.BaseOutput]]:
-    """Open MIDI input and output ports connected to the Zoom pedal."""
+def find_zoom_port_names() -> Tuple[Optional[str], Optional[str]]:
+    """Return the input/output port names for the Zoom pedal if available."""
 
     input_name = find_matching_port(mido.get_input_names(), all_midi_keywords())
     output_name = find_matching_port(mido.get_output_names(), all_midi_keywords())
 
     LOGGER.info("Zoom MIDI input: %s", input_name or "not found")
     LOGGER.info("Zoom MIDI output: %s", output_name or "not found")
-
-    input_port = mido.open_input(input_name) if input_name else None
-    output_port = mido.open_output(output_name) if output_name else None
-    return input_port, output_port
+    return input_name, output_name
 
 
-def open_m_vave_ports() -> tuple[Optional[mido.ports.BaseInput], Optional[mido.ports.BaseOutput]]:
+def open_m_vave_ports() -> Tuple[Optional[mido.ports.BaseInput], Optional[mido.ports.BaseOutput]]:
     """Open MIDI ports for the M-Vave Chocolate Plus."""
 
     keywords = ("M-VAVE", "CHOCOLATR", "Chocolate")
@@ -51,17 +47,3 @@ def open_m_vave_ports() -> tuple[Optional[mido.ports.BaseInput], Optional[mido.p
     input_port = mido.open_input(input_name) if input_name else None
     output_port = mido.open_output(output_name) if output_name else None
     return input_port, output_port
-
-
-@contextlib.contextmanager
-def managed_ports(open_fn):
-    """Context manager that opens ports using ``open_fn`` and closes them afterwards."""
-
-    input_port, output_port = open_fn()
-    try:
-        yield input_port, output_port
-    finally:
-        if input_port:
-            input_port.close()
-        if output_port:
-            output_port.close()

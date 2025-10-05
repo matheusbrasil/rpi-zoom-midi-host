@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import logging
 import signal
+import time
 from typing import Optional
+
+import mido
 
 from .display import Display
 from .m_vave import MVaveListener
-from .midi import managed_ports, open_m_vave_ports, open_zoom_ports
+from .midi import (
+    find_zoom_port_names,
+    open_m_vave_ports,
+)
 from .state import FootswitchAction, PatchChain
 from .usb_monitor import UsbMonitor
 from .zoom_ms60b import ZoomMs60bPlus
@@ -24,6 +30,10 @@ class ZoomMidiHostApp:
         self._monitor = UsbMonitor(on_connect=self._on_pedal_connected, on_disconnect=self._on_pedal_disconnected)
         self._pedal: Optional[ZoomMs60bPlus] = None
         self._m_vave_listener: Optional[MVaveListener] = None
+        self._zoom_midi_in = None
+        self._zoom_midi_out = None
+        self._m_vave_midi_in = None
+        self._m_vave_midi_out = None
         self._running = False
 
     def run(self) -> None:
@@ -55,36 +65,76 @@ class ZoomMidiHostApp:
 
     def _on_pedal_connected(self, event) -> None:
         LOGGER.info("Zoom pedal connected: %s", event)
-        with managed_ports(open_zoom_ports) as (midi_in, midi_out):
-            if midi_in is None or midi_out is None:
-                LOGGER.error("Failed to open Zoom MIDI ports")
-                return
-            self._pedal = ZoomMs60bPlus(midi_in, midi_out)
-            patch = self._pedal.fetch_patch_chain()
-            if patch:
-                self._display.show_patch(patch)
-            else:
-                self._display.show_message("Zoom MS-60B+ connected\nNo patch data")
-            self._setup_m_vave()
+        retry_delay = 1.0
+        max_attempts = 8
+        midi_in = midi_out = None
+        for attempt in range(1, max_attempts + 1):
+            input_name, output_name = find_zoom_port_names()
+            if input_name and output_name:
+                try:
+                    midi_in = mido.open_input(input_name)
+                    midi_out = mido.open_output(output_name)
+                except Exception:  # pragma: no cover - hardware initialisation failure
+                    LOGGER.exception("Failed to open Zoom MIDI ports on attempt %s", attempt)
+                    if midi_in:
+                        midi_in.close()
+                    if midi_out:
+                        midi_out.close()
+                    midi_in = midi_out = None
+                else:
+                    break
+            LOGGER.info(
+                "Zoom MIDI ports not ready yet (attempt %s/%s)",
+                attempt,
+                max_attempts,
+            )
+            time.sleep(retry_delay)
+        if midi_in is None or midi_out is None:
+            LOGGER.error("Failed to open Zoom MIDI ports after %s attempts", max_attempts)
+            return
+
+        self._zoom_midi_in = midi_in
+        self._zoom_midi_out = midi_out
+        self._pedal = ZoomMs60bPlus(midi_in, midi_out)
+        patch = self._pedal.fetch_patch_chain()
+        if patch:
+            self._display.show_patch(patch)
+        else:
+            self._display.show_message("Zoom MS-60B+ connected\nNo patch data")
+        self._setup_m_vave()
 
     def _on_pedal_disconnected(self, event) -> None:
         LOGGER.info("Zoom pedal disconnected: %s", event)
         if self._m_vave_listener:
             self._m_vave_listener.stop()
             self._m_vave_listener = None
+        if self._m_vave_midi_in:
+            self._m_vave_midi_in.close()
+            self._m_vave_midi_in = None
+        if self._m_vave_midi_out:
+            self._m_vave_midi_out.close()
+            self._m_vave_midi_out = None
+        if self._zoom_midi_in:
+            self._zoom_midi_in.close()
+            self._zoom_midi_in = None
+        if self._zoom_midi_out:
+            self._zoom_midi_out.close()
+            self._zoom_midi_out = None
         self._pedal = None
         self._display.show_message("Waiting for Zoom MS-60B+")
 
     def _setup_m_vave(self) -> None:
         if self._pedal is None:
             return
-        with managed_ports(open_m_vave_ports) as (midi_in, _):
-            if midi_in is None:
-                LOGGER.warning("M-Vave controller not detected")
-                return
-            actions = self._default_actions()
-            self._m_vave_listener = MVaveListener(midi_in, actions, self._handle_action)
-            self._m_vave_listener.start()
+        midi_in, midi_out = open_m_vave_ports()
+        if midi_in is None:
+            LOGGER.warning("M-Vave controller not detected")
+            return
+        self._m_vave_midi_in = midi_in
+        self._m_vave_midi_out = midi_out
+        actions = self._default_actions()
+        self._m_vave_listener = MVaveListener(midi_in, actions, self._handle_action)
+        self._m_vave_listener.start()
 
     def _handle_action(self, action: FootswitchAction) -> None:
         if not self._pedal:
