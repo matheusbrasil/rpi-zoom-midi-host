@@ -66,9 +66,9 @@ class ZoomMidiHostApp:
     def _on_pedal_connected(self, event) -> None:
         LOGGER.info("Zoom pedal connected: %s", event)
         retry_delay = 1.0
-        max_attempts = 20
         midi_in = midi_out = None
-        for attempt in range(1, max_attempts + 1):
+        attempt = 1
+        while self._running:
             input_name, output_name = find_zoom_port_names()
             if input_name and output_name:
                 try:
@@ -84,13 +84,13 @@ class ZoomMidiHostApp:
                 else:
                     break
             LOGGER.info(
-                "Zoom MIDI ports not ready yet (attempt %s/%s)",
+                "Zoom MIDI ports not ready yet (attempt %s)",
                 attempt,
-                max_attempts,
             )
             time.sleep(retry_delay)
+            attempt += 1
         if midi_in is None or midi_out is None:
-            LOGGER.error("Failed to open Zoom MIDI ports after %s attempts", max_attempts)
+            LOGGER.error("Failed to open Zoom MIDI ports; giving up for this connection")
             return
 
         self._zoom_midi_in = midi_in

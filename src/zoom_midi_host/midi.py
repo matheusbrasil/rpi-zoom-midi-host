@@ -28,8 +28,8 @@ def find_zoom_port_names() -> Tuple[Optional[str], Optional[str]]:
 
     input_names = mido.get_input_names()
     output_names = mido.get_output_names()
-    LOGGER.debug("Available MIDI inputs: %s", input_names)
-    LOGGER.debug("Available MIDI outputs: %s", output_names)
+    LOGGER.info("Available MIDI inputs: %s", [repr(name) for name in input_names])
+    LOGGER.info("Available MIDI outputs: %s", [repr(name) for name in output_names])
 
     input_name = find_matching_port(input_names, all_midi_keywords())
     output_name = find_matching_port(output_names, all_midi_keywords())
