@@ -92,7 +92,7 @@ python -m pip install .
 
 ### Configure the VMP400 LCD
 
-The touchscreen ships with an ILI9341 controller. The application talks to it
+The touchscreen ships with an ILI9486 controller. The application talks to it
 directly over SPI (`/dev/spidev0.0`) using `luma.lcd`, so no kernel framebuffer
 driver is required. Double-check that the `python3-spidev` and
 `python3-rpi.gpio` packages are installed and that the panel is wired according

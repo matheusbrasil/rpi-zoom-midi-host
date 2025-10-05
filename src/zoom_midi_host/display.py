@@ -11,16 +11,16 @@ from importlib import util
 from PIL import Image, ImageDraw, ImageFont
 
 spi = None
-ili9341 = None
+ili9486 = None
 
 _SPI_SPEC = util.find_spec("luma.core.interface.serial")
 _LCD_SPEC = util.find_spec("luma.lcd.device")
 if _SPI_SPEC is not None and _LCD_SPEC is not None:
     from luma.core.interface.serial import spi as _spi  # type: ignore
-    from luma.lcd.device import ili9341 as _ili9341  # type: ignore
+    from luma.lcd.device import ili9486 as _ili9486  # type: ignore
 
     spi = _spi
-    ili9341 = _ili9341
+    ili9486 = _ili9486
 
 from .state import PatchChain
 
@@ -67,12 +67,12 @@ class Display:
         self._init_device()
 
     def _init_device(self) -> None:
-        if spi is None or ili9341 is None:
+        if spi is None or ili9486 is None:
             LOGGER.warning("luma.lcd not available, display output will be logged only")
             return
         try:
             serial_interface = spi(device=SPI_DEVICE, port=SPI_PORT, gpio_DC=GPIO_DC, gpio_RST=GPIO_RST)
-            self._device = ili9341(
+            self._device = ili9486(
                 serial_interface,
                 width=self.width,
                 height=self.height,
