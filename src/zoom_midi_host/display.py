@@ -39,6 +39,21 @@ GPIO_DC = 24
 GPIO_RST = 25
 
 
+def _normalise_rotation(rotation: int) -> int:
+    """Convert degrees to the 0–3 index expected by luma.lcd."""
+
+    if rotation not in {0, 90, 180, 270}:
+        raise ValueError("rotation must be 0, 90, 180 or 270 degrees")
+    return (rotation // 90) % 4
+
+
+def _measure_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont) -> tuple[int, int]:
+    """Return width/height for text using Pillow's bbox API."""
+
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
 class Display:
     """Handle drawing the pedal chain on the Raspberry Pi display."""
 
@@ -46,6 +61,7 @@ class Display:
         self.width = width
         self.height = height
         self.rotation = rotation
+        self._rotation_idx = _normalise_rotation(rotation)
         self._device = None
         self._font = self._load_font()
         self._init_device()
@@ -60,7 +76,7 @@ class Display:
                 serial_interface,
                 width=self.width,
                 height=self.height,
-                rotate=self.rotation,
+                rotate=self._rotation_idx,
             )
         except ModuleNotFoundError as exc:
             LOGGER.warning(
@@ -110,9 +126,7 @@ class Display:
         total_height = 0
         line_metrics: list[tuple[int, int]] = []
         for line in lines:
-            bbox = draw.textbbox((0, 0), line, font=self._font)
-            width = bbox[2] - bbox[0]
-            height = bbox[3] - bbox[1]
+            width, height = _measure_text(draw, line, self._font)
             line_metrics.append((width, height))
             total_height += height
 
@@ -153,7 +167,7 @@ class Display:
             image.paste(icon, (icon_x, y), mask)
 
             label = effect.name
-            text_width, _ = draw.textsize(label, font=self._font)
+            text_width, _ = _measure_text(draw, label, self._font)
             text_x = x + (slot_width - text_width) // 2
             draw.text((text_x, y + ICON_SIZE[1] + 20), label, font=self._font, fill="cyan")
 
@@ -168,7 +182,7 @@ class Display:
         icon = Image.new("RGB", ICON_SIZE, color="#222222")
         draw = ImageDraw.Draw(icon)
         text = effect_name[:10]
-        text_width, text_height = draw.textsize(text, font=self._font)
+        text_width, text_height = _measure_text(draw, text, self._font)
         draw.text(
             ((ICON_SIZE[0] - text_width) / 2, (ICON_SIZE[1] - text_height) / 2),
             text,
