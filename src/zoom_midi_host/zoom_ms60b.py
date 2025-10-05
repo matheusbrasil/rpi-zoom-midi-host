@@ -14,10 +14,12 @@ from .zoom_protocol import build_sysex, parse_sysex_response, ZoomProtocolError
 
 LOGGER = logging.getLogger(__name__)
 
-REQUEST_CURRENT_PATCH = [0x29]
+REQUEST_CURRENT_PATCH_V2 = [0x64, 0x13]
+REQUEST_CURRENT_PATCH_V1 = [0x29]
 COMMAND_PARAMETER_EDIT_ENABLE = [0x50]
 COMMAND_PARAMETER_EDIT_DISABLE = [0x51]
 COMMAND_SAY_HI = [0x05]
+PATCH_RESPONSE_PREFIX_V2 = (0x64, 0x12)
 PATCH_RESPONSE_PREFIX_V1 = 0x28
 
 MAX_EFFECTS = 6
@@ -65,17 +67,31 @@ class ZoomMs60bPlus:
         """Fetch the current patch chain from the pedal."""
 
         self._clear_pending()
-        response = self._request(REQUEST_CURRENT_PATCH, timeout=1.5)
-        if not response:
-            return None
-        try:
-            data = parse_sysex_response(response)
-        except ZoomProtocolError:
-            LOGGER.exception("Failed to parse patch response")
-            return None
-        if not data or data[0] != PATCH_RESPONSE_PREFIX_V1:
-            LOGGER.warning("Unexpected patch response prefix: %s", data[:4])
-            return None
+        response = self._request(REQUEST_CURRENT_PATCH_V2, timeout=2.0)
+        data = None
+        if response is not None:
+            try:
+                data = parse_sysex_response(response)
+            except ZoomProtocolError:
+                LOGGER.exception("Failed to parse patch response")
+                data = None
+            else:
+                if len(data) < 2 or tuple(data[:2]) != PATCH_RESPONSE_PREFIX_V2:
+                    LOGGER.warning("Unexpected patch response prefix: %s", data[:4])
+                    data = None
+        if data is None:
+            LOGGER.info("Falling back to legacy patch request")
+            response = self._request(REQUEST_CURRENT_PATCH_V1, timeout=1.5)
+            if response is None:
+                return None
+            try:
+                data = parse_sysex_response(response)
+            except ZoomProtocolError:
+                LOGGER.exception("Failed to parse patch response")
+                return None
+            if not data or data[0] != PATCH_RESPONSE_PREFIX_V1:
+                LOGGER.warning("Unexpected legacy patch response prefix: %s", data[:4])
+                return None
 
         decoded = self._unpack_sysex(response.data[4:])
         if not decoded:
@@ -103,30 +119,44 @@ class ZoomMs60bPlus:
     def _parse_patch(self, data: bytes) -> Optional[PatchChain]:
         masked = bytes(byte & 0x7F for byte in data)
 
-        name_bytes = masked[26:58]
-        patch_name = name_bytes.split(b"\x00", 1)[0].decode("utf-8", errors="ignore").strip() or "Unknown Patch"
+        patch_name = "Unknown Patch"
+        ptcf_index = self._find_tag(data, b"PTCF")
+        if ptcf_index != -1:
+            ptcf_length = int.from_bytes(masked[ptcf_index + 4 : ptcf_index + 8], "little", signed=False)
+            ptcf_payload = masked[ptcf_index + 8 : ptcf_index + 8 + ptcf_length]
+            if len(ptcf_payload) >= 4 + 4 + 4 + 6 + 10:
+                short_name = ptcf_payload[4 + 4 + 4 + 6 : 4 + 4 + 4 + 6 + 10]
+                patch_name = short_name.split(b"\x00", 1)[0].decode("utf-8", errors="ignore").strip() or patch_name
+
+        if not patch_name:
+            name_index = self._find_tag(data, b"NAME")
+            if name_index != -1:
+                name_length = int.from_bytes(masked[name_index + 4 : name_index + 8], "little", signed=False)
+                name_payload = masked[name_index + 8 : name_index + 8 + name_length]
+                patch_name = name_payload.split(b"\x00", 1)[0].decode("utf-8", errors="ignore").strip() or "Unknown Patch"
 
         edtb_index = self._find_tag(data, b"EDTB")
         if edtb_index == -1:
             LOGGER.warning("EDTB chunk not found in patch payload")
             return PatchChain(patch_name=patch_name, effects=[])
 
-        edtb_data = data[edtb_index + 4 :]
-        next_tag_index = self._next_tag_index(data, edtb_index + 4)
+        edtb_length = int.from_bytes(masked[edtb_index + 4 : edtb_index + 8], "little", signed=False)
+        edtb_data = data[edtb_index + 8 : edtb_index + 8 + edtb_length]
+        next_tag_index = self._next_tag_index(data, edtb_index + 8)
         if next_tag_index != -1:
-            edtb_data = data[edtb_index + 4 : next_tag_index]
+            edtb_data = data[edtb_index + 8 : next_tag_index]
 
         effects: list[Effect] = []
-        for slot in range(MAX_EFFECTS):
-            base = 4 + slot * 24
-            if base + 8 > len(edtb_data):
+        effect_count = min(len(edtb_data) // 24, MAX_EFFECTS)
+        for slot in range(effect_count):
+            base = slot * 24
+            if base + 4 > len(edtb_data):
                 break
-            union = (
-                ((edtb_data[base + 3] & 0x7F) << 24)
-                | ((edtb_data[base + 2] & 0x7F) << 16)
-                | ((edtb_data[base + 1] & 0x7F) << 8)
-                | (edtb_data[base] & 0x7F)
-            )
+            b0 = edtb_data[base] & 0x7F
+            b1 = edtb_data[base + 1] & 0x7F
+            b2 = edtb_data[base + 2] & 0x7F
+            b3 = edtb_data[base + 3] & 0x7F
+            union = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0
             effect_id = (union >> 1) & 0x0FFFFFFF
             enabled = bool(union & 0x01)
             metadata = get_effect_metadata(effect_id)
