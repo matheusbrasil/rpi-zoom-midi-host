@@ -77,6 +77,39 @@ class Display:
 
         self._device.display(image)
 
+    def show_message(self, message: str) -> None:
+        """Render a simple status message to the display."""
+
+        lines = [line.strip() for line in message.splitlines() if line.strip()]
+        if not lines:
+            lines = [""]
+
+        image = Image.new("RGB", (self.width, self.height), color="black")
+        draw = ImageDraw.Draw(image)
+
+        total_height = 0
+        line_heights: list[int] = []
+        for line in lines:
+            _, height = draw.textsize(line, font=self._font)
+            line_heights.append(height)
+            total_height += height
+
+        spacing = 10
+        total_height += spacing * (len(lines) - 1)
+        current_y = max((self.height - total_height) // 2, 0)
+
+        for line, height in zip(lines, line_heights):
+            text_width, _ = draw.textsize(line, font=self._font)
+            x = max((self.width - text_width) // 2, 0)
+            draw.text((x, current_y), line, font=self._font, fill="cyan")
+            current_y += height + spacing
+
+        if self._device is None:
+            LOGGER.info("Display message:\n%s", _render_text_preview(image))
+            return
+
+        self._device.display(image)
+
     def _draw_effect_grid(self, image: Image.Image, draw: ImageDraw.ImageDraw, effects, start_y: int) -> None:
         columns = 2
         slot_height = ICON_SIZE[1] + 60

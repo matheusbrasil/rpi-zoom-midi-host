@@ -72,10 +72,38 @@ zoom-midi-host
 On first start the application will:
 
 1. Start a background USB watcher.
-2. Wait for the MS-60B+ to appear.
+2. Display "Waiting for Zoom MS-60B+" until the pedal is detected.
 3. Query the current patch and effect chain.
 4. Render the chain on the LCD (or console when the LCD stack is missing).
 5. Attach to the M-Vave Chocolate Plus and begin listening for footswitch events.
+
+### Automatic startup on boot
+
+The package bundles a helper command that installs a `systemd` unit so the host
+service launches automatically on boot. By default it installs a **user**
+service, which does not require root privileges:
+
+```bash
+zoom-midi-host install-service
+```
+
+The command writes the unit file to `~/.config/systemd/user/zoom-midi-host.service`
+and immediately enables and starts it. Ensure that lingering is enabled for your
+user account so systemd can run user services without an active login session:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+To install a system-wide service (requires root) run:
+
+```bash
+sudo zoom-midi-host install-service --scope system --user pi
+```
+
+Replace `pi` with the account that should run the process. The command attempts
+to enable and start the service automatically; if that step fails, systemd's
+output is logged so you can complete the process manually.
 
 ### Effect artwork
 
@@ -127,4 +155,4 @@ Unit tests (if/when added) will live under the `tests/` directory.
 * Integrate full parameter parsing based on Zoom's SysEx docs.
 * Persist preferred footswitch mappings and patch snapshots.
 * Provide a GTK based configuration UI when running over SSH.
-* Add systemd unit files for auto-starting on boot.
+* Add advanced patch editing tools.
