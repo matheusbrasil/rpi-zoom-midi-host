@@ -1,0 +1,1 @@
+recursive-include src/zoom_midi_host/assets *.png

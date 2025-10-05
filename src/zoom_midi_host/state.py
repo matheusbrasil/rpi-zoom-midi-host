@@ -16,6 +16,7 @@ class Effect:
     slot: int
     name: str
     enabled: bool = True
+    icon_slug: Optional[str] = None
 
 
 @dataclass_json
@@ -26,12 +27,14 @@ class PatchChain:
     patch_name: str
     effects: List[Effect] = field(default_factory=list)
 
-    def active_effects(self, skip_first: bool = True) -> List[Effect]:
-        """Return the list of enabled effects, optionally skipping the first slot."""
+    def active_effects(self, skip_first: bool = True, only_enabled: bool = True) -> List[Effect]:
+        """Return the list of effects, optionally filtering by enablement and slot."""
 
-        effects = [effect for effect in self.effects if effect.enabled]
-        if skip_first and effects:
-            return effects[1:]
+        effects: List[Effect] = self.effects
+        if only_enabled:
+            effects = [effect for effect in effects if effect.enabled]
+        if skip_first:
+            effects = [effect for effect in effects if effect.slot != 0]
         return effects
 
 
