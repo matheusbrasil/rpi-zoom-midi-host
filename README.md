@@ -39,8 +39,11 @@ Follow Velleman's documentation to wire the SPI display. The default pin mapping
        libjpeg-dev zlib1g-dev libfreetype-dev liblcms2-dev \
        libharfbuzz-dev libfribidi-dev libxcb1 \
        libopenblas-dev liblapack-dev \
-       poppler-utils imagemagick git
+       poppler-utils imagemagick git \
+       libasound2-dev python3-spidev python3-rpi.gpio
    ```
+
+   > **Note**: `python3-spidev` and `python3-rpi.gpio` provide the SPI and GPIO bindings required by `luma.lcd`. When they are missing the application falls back to console previews only.
 
 3. Enable the hardware interfaces required by the pedal chain:
 
@@ -52,7 +55,7 @@ Follow Velleman's documentation to wire the SPI display. The default pin mapping
 
    Reboot the Pi once the interfaces have been enabled.
 
-4. Connect the VMP400 to the SPI pins (3V3, GND, SCLK, MOSI, MISO, CE0 and BCM18 for the backlight) and plug the Zoom pedal and M-Vave controller into the USB ports. A powered hub is strongly recommended if the pedal draws additional current while enumerating.
+4. Connect the VMP400 to the SPI pins (3V3, GND, SCLK, MOSI, MISO, CE0 and BCM18 for the backlight) and plug the Zoom pedal and M-Vave controller into the USB ports. Refer to the [VMP400 manual](https://cdn.velleman.eu/downloads/29/vmp400_a4v03.pdf) for the full pinout (LCD_RS → GPIO24, RST → GPIO25, LCD_CS → CE0). A powered hub is strongly recommended if the pedal draws additional current while enumerating.
 
 5. Clone this repository onto the Pi and follow the software setup instructions below.
 
@@ -68,7 +71,8 @@ sudo apt install -y \
     libjpeg-dev zlib1g-dev libfreetype-dev liblcms2-dev \
     libharfbuzz-dev libfribidi-dev libxcb1 \
     libopenblas-dev liblapack-dev \
-    poppler-utils imagemagick git
+    poppler-utils imagemagick git \
+    libasound2-dev python3-spidev python3-rpi.gpio
 python3 -m venv .venv
 source .venv/bin/activate
 python -m ensurepip --upgrade
@@ -80,6 +84,26 @@ python -m pip install .
 > common on Raspberry Pi OS Bookworm), ensure you have sourced the virtual
 > environment and run `python -m ensurepip --upgrade` once to bootstrap an
 > isolated copy of `pip` inside `.venv/`.
+
+### Configure the VMP400 LCD
+
+The touchscreen ships with an ILI9341 controller. The application talks to it
+directly over SPI (`/dev/spidev0.0`) using `luma.lcd`, so no kernel framebuffer
+driver is required. Double-check that the `python3-spidev` and
+`python3-rpi.gpio` packages are installed and that the panel is wired according
+to the manual (GPIO24 → `LCD_RS`, GPIO25 → `RST`, CE0 → `LCD_CS`).
+
+If you prefer a framebuffer-based workflow, install the vendor driver from the
+[goodtft/LCD-show](https://github.com/goodtft/LCD-show) repository as described
+in the manual:
+
+```bash
+git clone https://github.com/goodtft/LCD-show.git
+cd LCD-show
+sudo ./LCD35-show
+```
+
+Reboot once the script finishes and the Pi will expose the display as `/dev/fb1`.
 
 To run the service directly:
 

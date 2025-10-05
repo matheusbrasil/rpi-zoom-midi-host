@@ -11,16 +11,16 @@ from importlib import util
 from PIL import Image, ImageDraw, ImageFont
 
 spi = None
-st7789 = None
+ili9341 = None
 
 _SPI_SPEC = util.find_spec("luma.core.interface.serial")
 _LCD_SPEC = util.find_spec("luma.lcd.device")
 if _SPI_SPEC is not None and _LCD_SPEC is not None:
     from luma.core.interface.serial import spi as _spi  # type: ignore
-    from luma.lcd.device import st7789 as _st7789  # type: ignore
+    from luma.lcd.device import ili9341 as _ili9341  # type: ignore
 
     spi = _spi
-    st7789 = _st7789
+    ili9341 = _ili9341
 
 from .state import PatchChain
 
@@ -30,6 +30,13 @@ EFFECT_ASSETS_DIR = Path(__file__).with_name("assets") / "effects"
 MAX_VISIBLE_EFFECTS = 4
 ICON_SIZE = (120, 120)
 ICON_PADDING = 20
+
+# Pin assignments follow the VMP400 manual: GPIO24 (DC) on pin 18, GPIO25 (RST) on pin 22 and
+# CE0 on pin 24 for the LCD chip select. Touch panel pins remain unused by the host application.
+SPI_PORT = 0
+SPI_DEVICE = 0
+GPIO_DC = 24
+GPIO_RST = 25
 
 
 class Display:
@@ -44,11 +51,24 @@ class Display:
         self._init_device()
 
     def _init_device(self) -> None:
-        if spi is None or st7789 is None:
+        if spi is None or ili9341 is None:
             LOGGER.warning("luma.lcd not available, display output will be logged only")
             return
-        serial_interface = spi(device=0, port=0)
-        self._device = st7789(serial_interface, width=self.width, height=self.height, rotate=self.rotation)
+        try:
+            serial_interface = spi(device=SPI_DEVICE, port=SPI_PORT, gpio_DC=GPIO_DC, gpio_RST=GPIO_RST)
+            self._device = ili9341(
+                serial_interface,
+                width=self.width,
+                height=self.height,
+                rotate=self.rotation,
+            )
+        except ModuleNotFoundError as exc:
+            LOGGER.warning(
+                "Unable to initialise SPI display (%s). Install `python3-rpi.gpio` and `python3-spidev` on the Pi.",
+                exc,
+            )
+        except Exception:  # pragma: no cover - hardware specific failure path
+            LOGGER.exception("Failed to initialise SPI display, falling back to console rendering")
 
     def _load_font(self) -> ImageFont.FreeTypeFont:
         try:
