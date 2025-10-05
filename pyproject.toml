@@ -37,3 +37,6 @@ dev = [
 
 [project.scripts]
 zoom-midi-host = "zoom_midi_host.__main__:main"
+
+[tool.setuptools]
+include-package-data = true

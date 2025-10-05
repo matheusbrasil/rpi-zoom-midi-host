@@ -8,6 +8,7 @@ from typing import Iterable, Optional
 
 import mido
 
+from .effect_catalog import get_effect_metadata
 from .state import Effect, PatchChain
 from .zoom_protocol import build_sysex, parse_sysex_response, ZoomProtocolError
 
@@ -81,8 +82,14 @@ class ZoomMs60bPlus:
             return None
         effect_id = data[base]
         enabled = bool(data[base + 1])
-        name = EFFECT_NAMES.get(effect_id, f"Effect {effect_id:02X}")
-        return Effect(slot=slot, name=name, enabled=enabled)
+        metadata = get_effect_metadata(effect_id)
+        name = metadata.name if metadata else f"Effect {effect_id:02X}"
+        return Effect(
+            slot=slot,
+            name=name,
+            enabled=enabled,
+            icon_slug=metadata.slug if metadata else None,
+        )
 
     def toggle_effect(self, slot: int, enabled: bool) -> None:
         """Toggle an effect slot on the pedal."""
@@ -91,13 +98,3 @@ class ZoomMs60bPlus:
         response = self._request(command)
         if not response:
             LOGGER.warning("Failed to toggle slot %s", slot)
-
-
-EFFECT_NAMES = {
-    0x01: "ZNR",
-    0x02: "Limiter",
-    0x03: "BassDrive",
-    0x04: "Bass Muff",
-    0x05: "Octaver",
-    0x06: "Bass Synth",
-}
