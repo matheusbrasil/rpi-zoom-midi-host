@@ -66,7 +66,7 @@ class ZoomMidiHostApp:
     def _on_pedal_connected(self, event) -> None:
         LOGGER.info("Zoom pedal connected: %s", event)
         retry_delay = 1.0
-        max_attempts = 8
+        max_attempts = 20
         midi_in = midi_out = None
         for attempt in range(1, max_attempts + 1):
             input_name, output_name = find_zoom_port_names()

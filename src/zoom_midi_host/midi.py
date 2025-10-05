@@ -26,8 +26,13 @@ def find_matching_port(names: Iterable[str], keywords: Iterable[str]) -> Optiona
 def find_zoom_port_names() -> Tuple[Optional[str], Optional[str]]:
     """Return the input/output port names for the Zoom pedal if available."""
 
-    input_name = find_matching_port(mido.get_input_names(), all_midi_keywords())
-    output_name = find_matching_port(mido.get_output_names(), all_midi_keywords())
+    input_names = mido.get_input_names()
+    output_names = mido.get_output_names()
+    LOGGER.debug("Available MIDI inputs: %s", input_names)
+    LOGGER.debug("Available MIDI outputs: %s", output_names)
+
+    input_name = find_matching_port(input_names, all_midi_keywords())
+    output_name = find_matching_port(output_names, all_midi_keywords())
 
     LOGGER.info("Zoom MIDI input: %s", input_name or "not found")
     LOGGER.info("Zoom MIDI output: %s", output_name or "not found")
