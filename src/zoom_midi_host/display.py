@@ -65,6 +65,11 @@ class Display:
         self._device = None
         self._font = self._load_font()
         self._init_device()
+        if self._device is not None:
+            # luma may swap dimensions when the panel is rotated; cache the runtime size so
+            # generated frames always match the expectations of the driver.
+            self.width = self._device.width
+            self.height = self._device.height
 
     def _init_device(self) -> None:
         if spi is None or ili9486 is None:
